@@ -1,0 +1,11 @@
+feature,importance_mean,importance_std
+i2_health,0.05407259,0.0030677917
+i11_health_Very willing,0.042378776,0.0030973288
+r1_1,0.041724056,0.002593977
+state_Western Australia,0.041424084,0.0036626041
+state_Victoria,0.039844282,0.0028120757
+state_New South Wales,0.02870971,0.0019075618
+i11_health_Very unwilling,0.025474846,0.0014992384
+i9_health_Not sure,0.025029933,0.0012842714
+i9_health_Yes,0.023788664,0.0014166299
+within_mandate_period,0.022931714,0.0015730375

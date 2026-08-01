@@ -1,0 +1,31 @@
+variable,level,count,proportion
+social_distancing_binary,Yes,21709,0.5408859876420171
+social_distancing_binary,No,18427,0.4591140123579829
+state,New South Wales,12204,0.30406617500498306
+state,Victoria,10323,0.25720051823799084
+state,Queensland,8188,0.2040063783137333
+state,South Australia,3853,0.09599860474387084
+state,Western Australia,3834,0.09552521427147698
+state,Tasmania,825,0.020555112617101853
+state,Australian Capital Territory,635,0.015821207893163245
+state,Northern Territory,274,0.006826788917679888
+gender,Female,20752,0.517042057006179
+gender,Male,19384,0.482957942993821
+employment_status,Full time employment,14001,0.348838947578234
+employment_status,Part time employment,9268,0.2309148893761212
+employment_status,Retired,8428,0.20998604743870838
+employment_status,Not working,4285,0.10676200916882599
+employment_status,Unemployed,4154,0.10349810643811043
+i9_health,Yes,30000,0.7474586406218856
+i9_health,No,6808,0.16962328084512657
+i9_health,Not sure,3328,0.08291807853298784
+i11_health,Very willing,27736,0.691050428542954
+i11_health,Somewhat willing,7859,0.1958092485549133
+i11_health,Neither willing nor unwilling,2484,0.06188957544349213
+i11_health,Somewhat unwilling,796,0.019832569264500697
+i11_health,Very unwilling,715,0.017814430934821608
+i11_health,Not sure,546,0.013603747259318318
+d1_comorbidities,Yes,18343,0.45702112816424156
+d1_comorbidities,No,15005,0.37385389675104647
+d1_comorbidities,NA,6205,0.15459936216862666
+d1_comorbidities,Prefer_not_to_say,583,0.01452561291608531
