@@ -1,0 +1,1374 @@
+---
+title: "Understanding the Behavioural Drivers of Social Distancing in Australia"
+author: "Huaohan"
+output:
+  pdf_document:
+    number_sections: true
+bibliography: Refs_Hu_Aohan.bib.bib
+geometry: "top=20mm, left=20mm, right=20mm, bottom=20mm"
+fontsize: 12pt
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+Project supervisor: Anthony Mays
+
+# Declaration
+
+In submitting this work I am indicating that I have read the University's Academic Integrity Policy. I declare that all material in this assessment is my own work except where there is clear acknowledgement and reference to the work of others. I give permission for this work to be reproduced and submitted to other academic staff for educational purposes.
+
+# Abstract
+
+Social distancing was an important part of the public health response to COVID-19, but adherence varied across individuals, time, and policy settings. This study examined which factors predicted high social distancing adherence in Australia and whether the predictive structure differed before and after state-level face mask mandates. Repeated cross-sectional survey data from the Imperial College London YouGov COVID-19 Behaviour Tracker were linked to state-level mandate start dates derived from the Oxford COVID-19 Government Response Tracker. The final analytical sample contained 40,136 responses collected between 24 June 2020 and 1 March 2022. A binary social distancing outcome was constructed from six survey items. Logistic regression, random forest, and XGBoost classifiers were evaluated for the full sample and for before- and after-mandate subsamples using five stratified shuffle validation splits and held-out test sets. Tree-based models consistently achieved higher ROC-AUC than logistic regression. On the held-out test data, XGBoost achieved the highest ROC-AUC for the full-sample (0.821) and after-mandate (0.820) tasks, while random forest performed best before mandates (0.777). Across both mandate periods and both tree-based algorithms, non-household contacts was the most important predictor. Perceived disease severity also remained influential, while survey timing, age, perceived susceptibility, life satisfaction, household size, willingness to isolate, and state indicators differed in relative importance between periods. These findings suggest that social distancing had both stable behavioural predictors and period-specific predictive patterns. 
+
+# Introduction
+
+## Project motivation
+
+With the rapid spread of COVID-19, governments around the world have taken a range of response measures, including closing school, travel restrictions, bans on public gatherings, contact tracing, emergency investment in healthcare facilities, and economic support measures[@Hale2021, p. 529]. And these interventions were intended to contain transmission, strengthen health systems, and manage the economic consequences of the pandemic [@Han2023, p. 149]. Therefore, it is important to understand how people behave during infectious disease outbreaks and how their behaviour is associated with policies and other factors.
+
+Controlling COVID-19 not only relies on biomedical intervention measures, but also depends on continued public participation in behaviours intended to reduce opportunities for transmission. Social distancing was an important part of this response. Reducing going out, gatherings, crowds, and contact with people outside the household could limit potential infectious contacts. Australian evidence from the beginning of the pandemic showed that distancing and hygiene behaviours varied substantially among respondents. These behaviours were associated with demographic characteristics, outbreak concern, media exposure, perceived disease severity, and the perceived effectiveness of protective measures [@Faasse2020, pp. 6--7]. Understanding this variation is important because the same public health advice may not produce the same behavioural response across individuals or policy settings.
+
+Social distancing behaviour may also have changed as the pandemic and its policy environment developed. Australian states and territories experienced different COVID-19 conditions and implemented different policies [@Ryan2025, p. 8]. Face mask mandates required people to wear face coverings in specified public settings, such as shops, public transport, and other indoor spaces. Their introduction represented an important change in this policy environment and may have coincided with changes in other protective behaviours. According to [@Yan2021, p. 4], Americans increased trips to a variety of places in the weeks following the mask mandate. However, the authors noted that the net effect on transmission remained uncertain. Comparing social distancing behaviour before and after mask mandates can show whether behavioural patterns differed between the two periods. However, this comparison cannot determine whether the mandates caused those differences.
+
+Previous predictive research in Australia found that the the influential predictors of face-mask use and general protective behaviour were not identical before and after mask mandates. State or territory, survey timing, non-household contacts, age, perceived disease threat, well-being, household size, confidence in government, and willingness to isolate appeared among the influential predictors, with some differences between policy periods [@Ryan2025, pp. 8--12]. Because that study combined several protective behaviours into a single outcome, its findings may not apply directly to social distancing. Therefore, the present study examines social distancing as a separate outcome.
+
+
+## Research aim
+
+This project extends the modelling framework used by Ryan et al. [-@Ryan2025] by treating social distancing adherence as a separate binary outcome. Logistic regression, Random forest, and XGBoost are compared across three related prediction tasks: the complete analytical sample, observations recorded before and after the relevant state-level mask mandate. Feature importance rankings are compared between the before and after mandate models to examine whether the importance of the available predictors differed between the two policy periods.
+
+- Research Questions:
+  - What factors predict social distancing behaviour in Australia?
+  - Have the predictive factors changed after face mask mandates?
+
+# Background
+
+## Social distancing behaviour
+
+Social distancing refers here to behaviours intended to reduce close physical contact and exposure to crowded or shared settings. In the present study, it includes avoiding visitors at home, gatherings, crowded places, and shops. 
+
+## Previous research on behavioural prediction
+
+Previous studies have identified several recurring groups of predictors. First, perceived risk and perceived effectiveness have been associated with protective behaviour. Perceived risk refers to how likely people believe they are to contract COVID-19 and how serious they believe the consequences would be. Perceived effectiveness refers to the extent to which people believe that recommended measures can reduce infection or transmission. Protective behaviour includes actions intended to reduce this risk, such as maintaining physical distance, avoiding gatherings and crowded places, practising hand hygiene, wearing a face mask, and self-isolating when required. In an early Australian survey, greater outbreak concern, perceived disease severity, and perceived effectiveness of protective measures were associated with reporting more distancing and hygiene behaviours [@Faasse2020, p. 7]. In an Italian study, perceived efficacy was identified as the most important variable for compliance, while risk perception and civic attitudes moderated the relationship between perceived efficacy and compliance[@Roma2020, pp. 9, 12--13].
+
+Second, social and institutional factors may provide predictive information beyond personal risk perceptions. Cross-national longitudinal findings showed that perceived social norms predicted changes in several forms of distancing behaviour [@Schumpe2022, p. 4]. Trust in government was also associated with more frequent handwashing, avoidance of crowded places, and self-isolation or quarantine, as well as a slower decline in protective behaviour over time [@Han2023, pp. 153, 155]. These associations do not demonstrate that trust causes greater adherence, but they support considering confidence in government and related attitudes as candidate predictors.
+
+Third, flexible machine-learning models can represent predictive relationships that may not be adequately captured by a single linear specification. Van Lissa et al. [-@VanLissa2022, pp. 5--7] used Random Forest to rank predictors from a large set of individual- and country-level variables. Roma et al. [-@Roma2020, p. 12] compared several classification algorithms and showed that the apparent performance of a model depended on the evaluation metric. Models with high overall accuracy did not necessarily identify the minority compliance class well. Ryan et al. [-@Ryan2025, pp. 8--9] similarly found that Random Forest and XGBoost achieved higher ROC-AUC than logistic regression and a single classification tree when predicting Australian protective behaviours.
+
+Together, these studies provide a rationale for comparing logistic regression as an interpretable linear baseline with the more flexible Random Forest and XGBoost models. They also show why model performance should be evaluated using ROC-AUC, precision, recall, accuracy, and F1 score rather than accuracy alone.
+
+
+## COVID-19 survey and policy context
+
+The present analysis uses repeated cross-sectional survey data collected in Australia while public health policies were changing. Because mask mandates began on different dates across states and territories, each observation was classified as occurring before or on or after mandate implementation by comparing the respondent's survey date with the mandate start date for their state or territory. A single national cut-off date was therefore not used.
+
+Distinguishing between the two periods is analytically relevant because previous research found that the importance of some predictors differed before and after mask mandate implementation. Ryan et al. [-@Ryan2025, p. 11] found that confidence in the government response and employment status were distinctive predictors of general protective behaviour before mandates, whereas willingness to isolate was distinctive after mandates. State or territory was also highly influential across the models, which the authors linked to differences in policies and COVID-19 experiences across Australia [@Ryan2025, p. 8].
+
+
+## Research gap
+
+Existing research has examined predictors of combined protective behaviour,mask wearing, and general compliance. The original Australian modelling study examined face-mask wearing and general protective behaviour, with the latter constructed by combining responses across multiple protective behaviours [@Ryan2025, p. 4]. Consequently, its results do not directly show whether the same predictors are important specifically for behaviours such as avoiding
+contacts, gatherings, crowded places, and shops.
+
+This project addresses that gap in three ways. First, it constructs a dedicated binary social distancing outcome from six behavioural items. Second, it compares logistic regression, Random Forest, and XGBoost within a consistent held-out prediction framework. Third, it compares repeated feature-importance rankings before and after mandate implementation. The contribution is therefore predictive and comparative: the analysis identifies predictors that were consistently important and examines how their rankings differed between the two policy periods, without interpreting those differences as causal effects of mask mandates.
+
+## Models
+
+```{r table-model-task-definitions, echo=FALSE}
+model_task_table <- data.frame(
+  `Task label` = c("Model 3", "Model 3a", "Model 3b"),
+  `Descriptive label` = c(
+    "Full sample",
+    "Before mandate",
+    "After mandate"
+  ),
+  `Observations included` = c(
+    "All observations in the analytical dataset",
+    paste(
+      "Observations recorded before the relevant state-level mask mandate start date"
+    ),
+    paste(
+      "Observations recorded after the relevant state-level mask mandate start date"
+    )
+  ),
+  `Sample size` = c("40,136", "14,945", "25,191"),
+  check.names = FALSE
+)
+
+knitr::kable(
+  model_task_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "Definition of the three prediction tasks.",
+  align = c("l", "l", "l", "r")
+) |>
+  kableExtra::kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    full_width = FALSE,
+    font_size = 8
+  ) |>
+  kableExtra::column_spec(1, width = "1.7cm") |>
+  kableExtra::column_spec(2, width = "2.5cm") |>
+  kableExtra::column_spec(3, width = "8.5cm") |>
+  kableExtra::column_spec(4, width = "1.8cm")
+```
+
+- `within_mandate_period`: Policy-period indicator.
+  - `0`: before the relevant state-level mask mandate.
+  - `1`: after the relevant state-level mask mandate began.
+  
+### Logistic Regression
+
+Logistic regression was selected as the baseline classifier because the
+outcome was binary and the model provides a relatively simple probabilistic
+prediction rule. Let \(p_i=P(Y_i=1\mid\mathbf{x}_i)\) denote the probability
+that respondent \(i\) reported high social distancing adherence. The model is
+
+\[
+\log\left(\frac{p_i}{1-p_i}\right)
+=
+\beta_0+\mathbf{x}_i^{\mathsf T}\boldsymbol{\beta},
+\]
+
+or, equivalently,
+
+\[
+p_i
+=
+\frac{\exp\left(\beta_0+\mathbf{x}_i^{\mathsf T}\boldsymbol{\beta}\right)}
+{1+\exp\left(\beta_0+\mathbf{x}_i^{\mathsf T}\boldsymbol{\beta}\right)}.
+\]
+
+Here, \(\mathbf{x}_i\) is the predictor vector, \(\beta_0\) is the intercept, and \(\boldsymbol{\beta}\) is the coefficient vector. These equations are the binary special case of the logistic regression formulation presented by [@Hastie2009, p. 119, eqs. 4.17--4.18].
+
+Logistic regression assumes that the log-odds of high social distancing adherence are an additive linear function of the supplied predictors. By contrast, Random Forest and XGBoost can represent non-linear relationships and interactions. Therefore, logistic regression was used as a baseline for comparing the predictive performance of Random Forest and XGBoost.
+
+### Random Forest
+
+A decision tree predicts an outcome by applying a sequence of splitting rules. At each internal node, the tree selects a predictor and a split point, and directs observations to different branches. This process continues until an observation reaches a terminal node, or leaf, where a class prediction is made. A single decision tree can be unstable because relatively small changes in the model-fitting data may produce a different tree structure
+[@Breiman1996, p. 123].
+
+Random Forest is an ensemble method that combines multiple decision trees. Breiman defined a Random Forest as a collection of tree-structured classifiers generated using independent and identically distributed random vectors, with each tree voting for a class [@Breiman2001, p. 6]. For a classification task, the forest combines the votes and selects the most popular class.
+
+Randomness is introduced in two main ways. First, each tree is fitted using a bootstrap replicate of the model-fitting data. Bootstrap replicates are created by sampling observations from the original data with replacement. This approach is based on bagging, which combines predictions from models fitted to different bootstrap learning sets [@Breiman1996, p. 123]. Second, only a randomly selected subset of predictors is considered when determining each split. This introduces variation among the trees and can reduce their
+correlation [@Breiman2001, pp. 10--11].
+
+Several hyperparameters control the fitted forest. `n_estimators` specifies the number of trees, while `max_depth` limits the depth of each tree. `min_samples_split` specifies the minimum number of observations required to split an internal node, and `min_samples_leaf` specifies the minimum number that must remain in a terminal leaf. `max_features` controls the number of candidate predictors considered at each split.
+
+Random Forest can represent non-linear relationships and interactions without requiring them to be specified in advance. It was therefore included as a flexible tree-based alternative to logistic regression.
+
+### XGBoost
+
+XGBoost is a tree-based boosting model. Unlike Random Forest, which fits multiple randomised trees and combines their predictions, XGBoost adds trees sequentially. Each new tree is fitted to improve the predictions produced by the existing collection of trees. The final prediction combines the contributions of all fitted trees [@Chen2016, p. 786].
+
+For binary classification, the `binary:logistic` objective transforms the combined score from the trees into a probability between 0 and 1 using the logistic function. During model fitting, binary log-loss measures the difference between the predicted probability and the observed outcome. Predictions that assign a low probability to the observed class receive a larger loss, particularly when the incorrect prediction is made with high confidence.
+
+The parameter `scale_pos_weight` controls the relative contribution of positive observations to the training loss. A value greater than 1 gives greater weight to errors involving the positive class, while a value of 1 gives the positive and negative classes equal weight per observation. This parameter can therefore be used when the two outcome classes have different numbers of observations.
+
+XGBoost uses information from both the first and second derivatives of its loss function when constructing successive trees [@Chen2016, pp. 786--787]. We did not study this internal optimisation procedure in detail, and it was not part of the present analysis. Readers interested in the optimisation algorithm are referred to Chen and Guestrin [-@Chen2016, pp. 786--787].
+
+
+## Feature Importance
+
+This project used the model-native feature-importance values produced by the
+fitted Random Forest and XGBoost models.
+
+For Random Forest, feature importance was calculated using mean decrease in
+impurity (MDI). For a split \(s_t\) at node \(t\), the reduction in impurity is
+
+\[
+\Delta i(s_t,t)
+=
+i(t)-p_L i(t_L)-p_R i(t_R),
+\]
+
+where \(i(t)\) is the impurity of the parent node, \(t_L\) and \(t_R\) are the
+two child nodes, and \(p_L\) and \(p_R\) are the proportions of observations
+sent to the child nodes. Because the implementation used the default
+classification criterion, impurity was measured using Gini impurity.
+
+For predictor \(X_m\), Random Forest sums the weighted impurity reductions
+from every split that uses that predictor and averages them across all trees:
+
+\[
+\operatorname{Imp}(X_m)
+=
+\frac{1}{N_T}
+\sum_{T}
+\sum_{\substack{t\in T\\v(s_t)=X_m}}
+p(t)\Delta i(s_t,t),
+\]
+
+where \(N_T\) is the number of trees, \(p(t)\) is the proportion of training observations reaching node \(t\), and \(v(s_t)\) identifies the predictor used for the split. The resulting values are normalised so that the importances of all predictors sum to one. A larger value therefore means that a predictor produced larger weighted reductions in Gini impurity across the forest [@NIPS2013_e3796ae8, p. 432, eqs. 1--2].
+
+
+For XGBoost, each candidate split is evaluated by the improvement it produces in the regularised objective function. This calculation uses the sums of the first and second-order derivatives of the loss for observations assigned tothe left and right child nodes and includes a penalty for adding a new leaf. A candidate split with a larger improvement is preferred during tree construction [@Chen2016, p. 787, eq. 7].
+
+
+# Methods
+
+## Data sources
+
+This study used a retrospective secondary analysis design, based on survey data from the Imperial College London YouGov COVID-19 Behaviour Tracker[@Jones2020], and it combines policy data from the Oxford COVID-19 Government Response Tracker [@Hale2021]. The analysis examined the predictors of social distancing behaviour before and after the implementation of face mask mandates in Australia.
+
+### Survey data
+
+The analysis used the Australian survey data from the Imperial College London YouGov COVID-19 Behaviour Tracker[@Jones2020]. This raw data contained 53,833 observations and 513 variables. The survey covered responses collected between 1 April 2020 and 28 March 2022, and each row represents a survey response from an Australian sample.
+
+The raw survey data included demographic variables, protective health behaviours, attitudes toward COVID-19, trust in government, mental health and well-being, and perceived disease threat. These variables provided the basis for constructing the social distancing outcome and the predictor used in the modelling analysis.
+
+Many variables in the raw survey data were not suitable for direct use in machine learning models. Some survey items were only asked during specific parts of the study period, while other variables had large amounts of missing data. Therefore, the first stage of the workflow involved cleaning the data and selecting suitable variables for modelling.
+
+After cleaning, the dataset contained 40,136 observations and 23 variables, with survey dates ranging from 24 June 2020 to 1 March 2022. After linking the policy period and categorical encoding, the modelling dataset contained 40,136 observations and 63 variables.
+
+### Government mandates
+
+The timing of mask mandate implementation differed across Australian states and territories. State-level start dates were derived from the OxCGRT 'H6M_Facial Coverings' indicator [@Hale2021]. The file contained 8 records, one for each Australian state or territory in the survey data. The mandate start dates ranged from 21 July 2020 in Victoria to 21 November 2021 in the Northern Territory.
+
+The state-level mandate start dates were linked to the survey records using each respondent’s state and survey date. This created the binary variable 'within_mandate_period', which classified each response as before or after the relevant state-level mask mandate. This variable was then used to construct the before-mandate and after-mandate prediction tasks.
+
+## Data cleaning and preprocessing
+
+Survey completion dates were converted to date format before cleaning. The raw Australia survey dataset was first cleaned by removing variables with a high proportion of missing values and excluding observations with incomplete information for the variables used in the analysis. Variables with more than 10,781 missing observations were removed. For survey periods in which selected PHQ-4 and health-condition items were unavailable, the relevant missing responses were coded as NA. Observations with missing values remaining in the variables required for analysis were then removed.
+
+The original survey variables and their transformations were as follows:
+
+- **Perceived severity (`r1_1`)** measured respondents' perceptions of the personal risks brought by the COVID-19 pandemic. The scoring for the responses ranges from 1 ("Disagree") to 7 ("Agree").
+
+- **Perceived susceptibility** (`r1_2`) measured respondents' perceived likelihood of becoming infected with COVID-19. The scoring for the responses ranges from 1 ("Disagree") to 7 ("Agree").
+
+- **Household size** represented the number of people living in the respondent's household. Responses from one to seven people were converted directly to the corresponding integers, while "8 or more" was coded as 8. "Don't know" and "Prefer not to say" were treated as missing values, and observations containing these values were excluded during filtering.
+
+- **Comorbidity status** was derived from the original multiple-response health-condition variables (`d1_health_*`). Respondents who reported none of the listed conditions (`d1_health_99`) were coded as "No", while respondents selecting at least one listed condition were coded as "Yes". The response represented by `d1_health_98` was retained as "Prefer not to say", and unavailable responses were retained as "N/A". The original individual health-condition variables were removed after the combined variable was created.
+
+- **Survey period** was constructed from the survey completion date. The earliest retained survey date, 24 June 2020, was assigned to period 1. Each subsequent period covered 14 consecutive days and was assigned the next integer. 
+
+State-level policy timing data were merged with the cleaned survey dataset to identify whether each response occurred before or during policy period. Categorical predictors, including state, gender, employment status, health status, isolation-related responses, mental health items, and comorbidity status, were converted into dummy variables. Continuous and ordinal variables such as age, household size, perceived risk, life satisfaction, and survey week were retained as model predictors.
+
+
+## Outcome construction
+
+The main response variable in this project was social distancing behaviour. The outcome was constructed from survey items measuring how often respondents reported distancing-related behaviours. 
+
+- It was constructed from six survey items:
+  - `i12_health_11`
+  - `i12_health_12`
+  - `i12_health_13`
+  - `i12_health_14`
+  - `i12_health_15`
+  - `i12_health_16`
+
+These items included behaviours such as avoiding guests at home, avoiding gatherings, avoiding crowded places, and avoiding going to shops.(see Appendix 11.1)
+
+Responses were mapped to numeric scores from 1 to 5:
+
+- Not at all: 1
+- Rarely: 2
+- Sometimes: 3
+- Frequently: 4
+- Always: 5
+
+A social distancing scale was calculated as the respondent-level median across the available selected items. The binary outcome social_distancing_binary was coded as 1 ("Yes") when the median score was at least 4 and as 0 ("No") when the median score was below 4.
+
+## Exploratory data analysis
+
+Exploratory data analysis was conducted to examine the suitability of the social distancing outcome for modelling. Summary statistics were calculated for the social distancing scale and selected continuous variables. The distribution of the scale was plotted to assess variation in reported behaviour. Median social distancing scores were also calculated across consecutive 14-day survey periods and plotted to examine changes over the study period.
+
+
+## Predictor variables
+
+The predictor variables were organised into demographic variables, behavioural variables, attitudinal variables, trust-related variables, health and well-being variables, and policy-related variables. This structure follows the idea that social distancing behaviour may depend on both individual characteristics and the wider COVID-19 policy environment. The cleaned predictor set was created from the Australian YouGov survey data and linked with state-level policy timing data[@Jones2020; @Hale2021].
+
+### Demographics
+
+Demographic predictors chose age, gender, state, household size, and employment status. For example, age may be related to perceived COVID-19 risk, household size may affect daily exposure within the home, and employment status may affect whether a respondent needed to leave home for work. State was also retained because COVID-19 policies and infection experiences differed across Australian states and territories. These demographic variables appeared in the cleaned dataset and categorical variables such as state, gender, and employment status were converted into dummy variables before modelling.
+
+### Behavioural variables
+
+Behavioural predictors measured actions that were related to COVID-19 behaviour but were not directly used to define the social distancing outcome. The variable i2_health recorded the reported number of people outside the respondent's household with whom they had come into physical contact within two metres. This variable was included because leaving home more often may increase opportunities for contact with people outside the household. After the social distancing scale was constructed, the original social distancing survey items were removed from the predictor set to avoid using the same variables as both outcome and predictors .
+
+### Attitudinal variables
+
+Attitudinal predictors measured respondents' perceptions of COVID-19 risk and their willingness to follow health advice. These included perceived personal danger from COVID-19 (r1_1), perceived likelihood of future infection (r1_2), willingness to isolate after symptoms (i9_health), and willingness to self-isolate if advised by a health professional or public-health authority (i11_health). The perceived illness threat variables were converted into numeric scores before modelling.
+
+### Trust-related variables
+
+Trust-related predictors included respondents' views about how well the government was handling COVID-19 (WCRex1) and their confidence in the health-system response (WCRex2). These variables were included because trust in public institutions may affect whether people accept and follow public-health guidance. These categorical variables were converted into dummy variables before modelling.
+
+### Health and well-being variables
+
+Health and well-being predictors included the Cantril ladder, the PHQ-4 mental-health items, and comorbidity status. The Cantril ladder measured general life evaluation. The PHQ-4 items measured recent symptoms related to anxiety and depression. Comorbidity status was constructed from the original health-condition questions and simplified into a categorical variable. These variables were retained because health status and well-being may influence perceived vulnerability and the ability to maintain distancing behaviour.
+
+## Modelling approach
+
+The cleaned dataset was divided into training and test sets using a custom 80/20 split stratified by mask mandate period. The two categories were responses recorded before the relevant state-level mask mandate start date and responses recorded on or after that date (see Appendix 11.3). Respondent identifiers, survey dates, the continuous social distancing scale, and the original categorical outcome were excluded from the predictors. The mask mandate-period indicator was also excluded from Models 3a and 3b because it was used to define the two period-specific samples.
+
+
+Model development used five stratified shuffle validation splits within each training dataset. In each split, 80% of the available training observations were used for model fitting and 20% for validation, with stratification based on the binary social distancing outcome. For Models 3a and 3b, random upsampling of the minority outcome class was applied only to the model-fitting observations. Validation and test observations were not upsampled. Fixed random seeds were used to support reproducibility.
+
+Hyperparameters for Random Forest and XGBoost were optimised using Optuna's tree-structured Parzen estimator (TPE) sampler. Optuna supports TPE as an independent parameter-sampling method, optuna uses a define-by-run API that enables parameter search spaces to be constructed dynamically [@Akiba2019, pp. 2623--2626]. For each model and prediction task, 100 trials were conducted, with mean ROC-AUC across the five validation splits used as the optimisation objective.
+
+The final Random Forest and XGBoost hyperparameters were selected using the one-standard-error rule. Configurations with a mean validation ROC-AUC within one standard error of the highest value were shortlisted, after which the simpler specification was selected according to the predefined hyperparameter ordering.
+
+### Logistic Regression (Appendix 11.4.2)
+
+Logistic regression was used as the baseline binary classifier. Within each validation split, random upsampling was first applied to the model-fitting observations. Model 3 retained the original outcome distribution, whereas Models 3a and 3b used random upsampling of the minority outcome class. Validation observations were not upsampled.
+
+After upsampling, the predictors were standardised. The mean and standard deviation of each predictor were calculated using the model-fitting observations. These values were then used to standardise both the model-fitting data and the corresponding validation data.
+
+Each logistic regression model was fitted with a maximum of 5,000 iterations. No hyperparameter tuning was performed. The implementation used the scikit-learn defaults for the L2 penalty and regularisation parameter \(C=1.0\). The L2 penalty adds the sum of the squared coefficient values to the model's objective function. It discourages very large coefficients and can reduce overfitting, generally shrinking coefficients towards zero rather than setting them exactly to zero. The parameter \(C\) controls the inverse strength of regularisation: a smaller value applies stronger regularisation, whereas a larger value applies weaker regularisation. 
+
+### Random Forest (Appendix 11.4.4)
+
+Random Forest was implemented as a binary classifier using 250 classification trees. Each tree was fitted to a bootstrap sample of the model-fitting observations. Model 3 retained the original outcome distribution, while random upsampling was applied to the model-fitting observations for Models 3a and 3b. Validation observations were not upsampled.
+
+
+### XGBoost (Appendix 11.4.5)
+
+XGBoost was implemented as a binary classifier using 250 boosting rounds. The objective was set to `binary:logistic`, and the internal evaluation metric was set to `logloss`. For each model-fitting dataset, `scale_pos_weight` was calculated as the number of negative observations divided by the number of positive observations. Because Models 3a and 3b were upsampled before this calculation, their `scale_pos_weight` values were 1.
+
+
+### Model evaluation and selection
+
+All models were evaluated using the five stratified shuffle validation splits. Precision, recall, ROC-AUC, accuracy, and F1 score were calculated separately for each validation split and summarised using their means and standard errors. ROC-AUC was used as the primary optimisation and model-selection metric for Random Forest and XGBoost.
+
+After hyperparameter selection, the selected Random Forest and XGBoost models were refitted using the complete task-specific training sample. For Models 3a and 3b, random upsampling was applied only to the training data used for model fitting. Final model performance was evaluated using the corresponding held-out test sample, which was not used during validation, hyperparameter optimisation, or model selection.
+
+### Feature importance
+
+For each prediction task, the selected Random Forest and XGBoost models were refitted 80 times using different random seeds. For Models 3a and 3b, random upsampling was repeated within each refitting. Model-native feature importance was extracted after every fit. The reported importance of each predictor was the mean of its 80 importance values, and the corresponding standard deviation described variation across the repeated fits.
+
+# Results
+
+## Descriptive results
+
+After data cleaning, the analytical dataset contained 40,136 Australian survey responses. Of these, 21,709 (54.1%) were classified as having high social distancing adherence and 18,427 (45.9%) as having lower adherence. The median social distancing score was 4.0 and the mean was 3.47. Respondents had a mean age of 47.9 years and a mean household size of 2.67. Table 2 also reports the training and test sample sizes for the full-sample, before-mandate, and after-mandate prediction tasks.
+
+```{r table-descriptive-summary, echo=FALSE, message=FALSE, warning=FALSE}
+library(knitr)
+
+descriptive_table <- data.frame(
+  Section = c(
+    "Analytical sample",
+    "Outcome distribution",
+    "Outcome distribution",
+    "Social distancing scale",
+    "Social distancing scale",
+    "Respondent characteristics",
+    "Respondent characteristics",
+    "Overall prediction",
+    "Overall prediction",
+    "Before-mandate",
+    "Before-mandate",
+    "After-mandate",
+    "After-mandate"
+  ),
+  Measure = c(
+    "Total responses",
+    "High social distancing adherence",
+    "Lower social distancing adherence",
+    "Median score",
+    "Mean score",
+    "Mean age",
+    "Mean household size",
+    "Training observations",
+    "Test observations",
+    "Training observations",
+    "Test observations",
+    "Training observations",
+    "Test observations"
+  ),
+  Value = c(
+    "40,136",
+    "21,709 (54.1%)",
+    "18,427 (45.9%)",
+    "4.0",
+    "3.47",
+    "47.9 years",
+    "2.67",
+    "32,109",
+    "8,027",
+    "11,956",
+    "2,989",
+    "20,153",
+    "5,038"
+  )
+)
+
+kable(
+  descriptive_table,
+  caption = "Descriptive summary of the analytical dataset and modelling task sample sizes."
+)
+```
+
+## Model performance results
+
+### Cross-validation performance
+
+For the before-mandate task, random forest had the highest mean ROC-AUC at 0.752 (SE = 0.004). For the after-mandate task, XGBoost had the highest mean ROC-AUC at 0.815 (SE = 0.003).
+
+```{r table-model-performance-results, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(knitr)
+library(kableExtra)
+
+model_performance_table <- data.frame(
+  Model = c(
+    "logistic regression", "random forest", "XGBoost",
+    "logistic regression", "random forest", "XGBoost",
+    "logistic regression", "random forest", "XGBoost"
+  ),
+  AUC = c(
+    "0.733 (0.002)", "0.803 (0.002)", "\\textbf{0.812 (0.002)}",
+    "0.698 (0.004)", "\\textbf{0.752 (0.004)}", "0.748 (0.003)",
+    "0.737 (0.003)", "0.806 (0.003)", "\\textbf{0.815 (0.003)}"
+  ),
+  precision = c(
+    "0.677 (0.002)", "0.736 (0.002)", "0.766 (0.003)",
+    "0.617 (0.002)", "0.661 (0.004)", "0.659 (0.004)",
+    "0.732 (0.002)", "0.779 (0.004)", "0.800 (0.003)"
+  ),
+  recall = c(
+    "0.754 (0.003)", "0.767 (0.002)", "0.724 (0.005)",
+    "0.671 (0.008)", "0.684 (0.009)", "0.686 (0.007)",
+    "0.691 (0.003)", "0.734 (0.004)", "0.716 (0.005)"
+  ),
+  accuracy = c(
+    "0.672 (0.002)", "0.725 (0.002)", "0.730 (0.002)",
+    "0.643 (0.003)", "0.680 (0.004)", "0.679 (0.004)",
+    "0.674 (0.002)", "0.726 (0.004)", "0.732 (0.004)"
+  ),
+  F1 = c(
+    "0.714 (0.002)", "0.751 (0.002)", "0.744 (0.003)",
+    "0.643 (0.005)", "0.672 (0.006)", "0.672 (0.005)",
+    "0.711 (0.002)", "0.756 (0.004)", "0.756 (0.004)"
+  )
+)
+
+kable(
+  model_performance_table,
+  format = "latex",
+  booktabs = TRUE,
+  escape = FALSE,
+  caption = "Cross-validation performance of the three models across the social distancing prediction tasks. Each value is reported as the mean with its standard error across the five validation splits. Bold values indicate the model with the highest ROC-AUC in each task.",
+  align = c("l", "c", "c", "c", "c", "c")
+) %>%
+  pack_rows("overall social distancing behaviour", 1, 3, italic = TRUE) %>%
+  pack_rows("before mandates--social distancing behaviour", 4, 6, italic = TRUE) %>%
+  pack_rows("after mandates--social distancing behaviour", 7, 9, italic = TRUE) %>%
+  kable_styling(
+    latex_options = c("hold_position"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+
+### Test-set performance
+
+Table 4 reports performance on the held-out test sets for the selected tree-based models. For the full-sample task, XGBoost had a higher ROC-AUC than random forest (0.821 versus 0.812) and higher accuracy (0.747 versus 0.733). For the before-mandate task, random forest had a higher ROC-AUC than XGBoost (0.777 versus 0.770). For the after-mandate task, XGBoost had a slightly higher ROC-AUC (0.820 versus 0.817).
+
+
+```{r table-test-set-performance, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(knitr)
+library(kableExtra)
+
+test_performance_table <- data.frame(
+  Model = c(
+    "random forest", "XGBoost",
+    "random forest", "XGBoost",
+    "random forest", "XGBoost"
+  ),
+  AUC = c(
+    "0.812", "\\textbf{0.821}",
+    "\\textbf{0.777}", "0.770",
+    "0.817", "\\textbf{0.820}"
+  ),
+  precision = c(
+    "0.739", "0.781",
+    "0.661", "0.657",
+    "0.791", "0.803"
+  ),
+  recall = c(
+    "0.779", "0.737",
+    "0.735", "0.725",
+    "0.746", "0.724"
+  ),
+  accuracy = c(
+    "0.733", "0.747",
+    "0.699", "0.694",
+    "0.739", "0.737"
+  ),
+  F1 = c(
+    "0.758", "0.758",
+    "0.696", "0.690",
+    "0.768", "0.761"
+  )
+)
+
+kable(
+  test_performance_table,
+  format = "latex",
+  booktabs = TRUE,
+  escape = FALSE,
+  caption = "Held-out test-set performance of the selected tree-based models. Values range from 0 to 1, with higher values indicating better performance. Bold values indicate the highest ROC-AUC within each task.",
+  align = c("l", "c", "c", "c", "c", "c")
+) %>%
+  pack_rows("overall social distancing behaviour", 1, 2, italic = TRUE) %>%
+  pack_rows("before mandates--social distancing behaviour", 3, 4, italic = TRUE) %>%
+  pack_rows("after mandates--social distancing behaviour", 5, 6, italic = TRUE) %>%
+  kable_styling(
+    latex_options = c("hold_position"),
+    full_width = FALSE,
+    position = "center"
+  )
+```
+
+## Feature importance results
+
+
+Feature importance was calculated across 80 repeated fits of each selected tree-based model. Figures 1 and 2 display the ten features with the highest mean importance separately for the before- and after-mandate tasks; error bars represent the standard deviation across repeated fits.
+
+
+**Figure 1. Ten highest-ranked features for the random forest models before and after mask mandate implementation.** Bars show mean feature importance across 80 repeated model fits, and error bars show one standard deviation.
+*Source code: feature-importance values generated by `analysis/11_generate_feature_importance.py`; figure generated by `R/social_distance_top10_feature_plots.R`.*
+
+```{r figure-rf-top10-feature-importance, echo=FALSE, out.width="95%"}
+knitr::include_graphics("../project/R/social_distance_rf_top10_feature_importance.png")
+```
+
+**Figure 2. Ten highest-ranked features for the XGBoost models before and after mask mandate implementation.** Bars show mean feature importance across 80 repeated model fits, and error bars show one standard deviation.
+
+*Source code: feature-importance values generated by `analysis/11_generate_feature_importance.py`; figure generated by `R/social_distance_top10_feature_plots.R`.*
+
+```{r figure-xgb-top10-feature-importance, echo=FALSE, out.width="95%"}
+knitr::include_graphics("../project/R/social_distance_xgboost_top10_feature_importance.png")
+```
+
+Figures 3 and 4 present the same feature-importance patterns using tornado plots. These figures compare the relative importance of stable predictors before and after mandate periods and show the interquartile range of feature importance across repeated model fits.
+
+**Figure 3: Plot of feature importance when predicting social distancing behaviour using random forest.** Median feature importance was calculated across 80 repeated model fits, and error bars show the interquartile range.
+
+*Source code: repeated feature-importance values generated by `analysis/11_generate_feature_importance.py`; figure generated by `R/social_distance_feature_importance_plots_ggplot.R`.*
+
+```{r figure-rf-tornado-feature-importance, echo=FALSE, out.width="90%"}
+knitr::include_graphics("../project/R/social_distance_rf_feature_importance_tornado_ggplot.png")
+```
+
+**Figure 4: Plot of feature importance when predicting social distancing behaviour using XGBoost.** Median feature importance was calculated across 80 repeated model fits, and error bars show the interquartile range.
+
+*Source code: repeated feature-importance values generated by `analysis/11_generate_feature_importance.py`; figure generated by `R/social_distance_feature_importance_plots_ggplot.R`.*
+
+```{r figure-xgb-tornado-feature-importance, echo=FALSE, out.width="90%"}
+knitr::include_graphics("../project/R/social_distance_xgboost_feature_importance_tornado_ggplot.png")
+```
+
+# Discussion
+
+## Interpretation of the main findings
+
+This study addressed two questions: which factors predicted social distancing behaviour in Australia, and whether the predictive factors differed after face mask mandates were implemented. The first finding was that tree-based models provided better discrimination than logistic regression. Across all three validation tasks, random forest and XGBoost achieved higher ROC-AUC than the linear baseline. 
+
+Model performance differed between the two period-specific prediction tasks. On the held-out test sets, Random Forest achieved a ROC-AUC of 0.777 for the before-mandate task and 0.817 for the after-mandate task. The corresponding XGBoost values were 0.770 and 0.820. Thus, both tree-based algorithms achieved higher discrimination in the after-mandate task. Within each task, Random Forest and XGBoost were evaluated using the same held-out observations. However, the before- and after-mandate tasks used different period-specific
+subsamples. The analysis did not test why performance differed between these subsamples. Therefore, the higher ROC-AUC after mandates should not be interpreted as an effect of mask mandates, because the two periods also differed in epidemic conditions, sample composition, and other policy settings.
+
+The clearest answer to the first research question was the stability of non-household contacts. It was the highest-ranked feature in both mandate periods and in both tree-based algorithms. This consistency indicates that respondents' opportunities for contact outside the household contained substantial information about their broader distancing behaviour. Perceived disease severity was another recurring predictor, appearing near the top of both model types before and after mandates. Age, perceived susceptibility, life satisfaction, household size, survey timing, state, and isolation-related responses also contributed predictive information, although their rankings were less stable.
+
+The second research question was supported by changes in relative importance rather than by a complete replacement of predictors. In random forest, survey timing became more prominent after mandate implementation. In XGBoost, willingness to isolate and several state indicators became more prominent after mandates, whereas perceived susceptibility and survey timing appeared in the before-mandate top ten but not the after-mandate top ten. The results therefore indicate a combination of stable predictors, particularly contacts and perceived severity, and period-specific differences involving time, geography, and willingness to isolate.
+
+## Behavioural and policy implications
+
+The findings should be interpreted as information for prediction rather than as evidence about effective interventions. Reported non-household contact information may help identify respondents with different levels of social distancing adherence. However, the analysis does not show that changing the number of contacts would cause changes in the other social distancing behaviours included in the outcome.
+
+Several state indicators appeared among the ten highest-ranked predictors in the after-mandate XGBoost model, including Western Australia, New South Wales, Queensland, and South Australia. This indicates that information about a respondent's state contributed to the model's predictions. However, state should be interpreted as a marker of unmeasured differences between Australian states and territories rather than as an explanation of social distancing behaviour. Its importance may reflect policy timing, local epidemic conditions, other restrictions, public communication, population composition, or a combination of these factors. These explanations were not examined separately, and further analysis would be required to identify the specific state-level factors involved.
+
+## Comparison with previous work
+
+The stronger performance of the tree-based models is consistent with the original Australian study, in which Random Forest and XGBoost achieved higher ROC-AUC than logistic regression and a single classification tree across the four prediction tasks [@Ryan2025, pp. 8--9]. The original study also identified state or territory, non-household contacts, perceived illness threat, age, survey timing, household size, and willingness to isolate as important predictors, although their prominence varied across outcomes, models, and mandate periods [@Ryan2025, pp. 8--12]. The present findings indicate that several of these predictive patterns also apply specifically to social distancing.
+
+The importance of contact behaviour is also consistent with the cross-national machine-learning results of Van Lissa et al. [-@VanLissa2022, p. 6]. Their study found that more days spent leaving home and more in-person contact with people outside the household generally corresponded with lower infection-prevention behaviour. The recurring importance of perceived severity is consistent with early Australian evidence showing that outbreak concern, perceived personal severity, and perceived effectiveness of protective behaviours predicted greater engagement in distancing and hygiene behaviours [@Faasse2020, p. 7]. Roma et al. also found that perceived efficacy predicted compliance and that the relationship between perceived efficacy and compliance varied according to risk perception and civic attitudes [@Roma2020, pp. 9, 12--13].
+
+Isolation-related predictors ranked more highly after mandate implementation. This pattern is similar to Ryan et al.'s finding that willingness to isolate was an important predictor after mandates [@Ryan2025, pp. 10--12]. However, the present analysis differs from that study by using a social distancing outcome.
+
+## Limitations
+
+Several limitations should be considered when interpreting the findings.
+
+First, the survey data contained substantial missingness. Variables with extensive missing data were removed, selected items that were unavailable during particular survey periods were coded as 'N/A', and observations with missing information in the variables required for analysis were excluded.
+
+Second, the representation of the policy environment was simplified. Each survey response was classified as occurring before or on or after a state-level mask mandate using a derived mandate start date. This binary classification did not capture subsequent changes in mandate strength, differences in policy coverage or enforcement, or mandate end dates. Other public health measures, including movement restrictions, gathering limits, vaccination policies, and local outbreak responses, also overlapped with mask mandates. Consequently, differences between the before- and after-mandate models may reflect broader changes in time, epidemic conditions, and state-level policy environments rather than mask mandates alone.
+
+Third, feature importance should be interpreted as predictive rather than causal evidence. A variable with high importance helped a fitted model distinguish between respondents with higher and lower social distancing adherence, but this does not mean that the variable caused behaviour to change. Model-native importance scores may also be influenced by correlations among predictors and are not directly comparable between Random Forest and
+XGBoost because the models calculate importance differently. Furthermore, these scores do not indicate the direction or effect size of a predictor's association with social distancing. The results therefore identify useful predictive signals but cannot establish the causal effects of individual predictors. Similarly, differences between the before- and after-mandate models cannot establish that mask mandates caused changes in social distancing behaviour.
+
+## Future work
+
+Future work could assess the stability and generalisability of these findings using temporal or geographic validation rather than relying only on random splits. Incorporating local epidemiological indicators, vaccination coverage, and other public health policies could help determine whether differences between mandate periods were associated with broader temporal and policy changes. Sensitivity analyses could also examine alternative social distancing thresholds, definitions of mandate commencement, and date restrictions for Model 3a.
+
+
+# Conclusion
+
+This study combined survey and policy data to predict high social distancing adherence in Australia across the full sample and before and after state-level face mask mandates. Random Forest and XGBoost achieved higher ROC-AUC than logistic regression across the three prediction tasks. Random Forest achieved the highest test ROC-AUC before mandates, whereas XGBoost achieved the highest test ROC-AUC for the full-sample and after-mandate tasks.
+
+The number of non-household contacts was the highest-ranked predictor in both mandate periods and in both tree-based models, while perceived severity also remained influential across periods. Differences in the importance rankings of survey timing, state, perceived susceptibility, and willingness to isolate suggest that the available predictors did not contribute identically before and after mandate implementation.
+
+These findings identify both stable and period-specific predictive signals of social distancing behaviour. However, they do not establish that mask mandates caused the observed differences because the period-specific samples also differed in calendar time and broader epidemic and policy conditions. The study demonstrates the value of modelling social distancing as a distinct behavioural outcome and of comparing linear and tree-based approaches when examining public health behaviour.
+
+
+# Acknowledgements
+
+AI tools were used for language support in the preparation of this report, including
+help with grammar, wording, and clarity of expression.
+
+The project repository is available at:  
+<https://github.com/printf11121/MDSresearch_FianlReport_Hu_A>
+
+
+
+\newpage
+# References
+
+<div id="refs"></div>
+
+
+\newpage
+
+# Appendix
+
+## Variables Used to Construct the Social Distancing Scale
+The social distancing scale was constructed from six survey items in the Australian YouGov COVID-19 survey data. These variables measured how often respondents avoided different types of social contact and public activity.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{ll}
+\hline
+Variable & Survey item \\
+\hline
+i12\_health\_11 & Avoided having guests to your home \\
+i12\_health\_12 & Avoided small social gatherings, not more than 2 people \\
+i12\_health\_13 & Avoided medium-sized social gatherings, between 3 and 10 people \\
+i12\_health\_14 & Avoided large-sized social gatherings, more than 10 people \\
+i12\_health\_15 & Avoided crowded areas \\
+i12\_health\_16 & Avoided going to shops \\
+\hline
+\end{tabular}
+\end{center}
+
+## Variables used in the analysis
+
+```{r appendix-variable-table, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(knitr)
+library(kableExtra)
+
+variable_table <- data.frame(
+  Variable = c(
+    "social_distancing_binary",
+    "social_distancing_scale",
+    "i12_health_11 to i12_health_16",
+    "i2_health",
+    "r1_1",
+    "r1_2",
+    "PHQ4_1 to PHQ4_4",
+    "d1_comorbidities",
+    "state",
+    "gender",
+    "employment_status",
+    "i9_health",
+    "i11_health",
+    "WCRex1; WCRex2",
+    "age",
+    "household_size",
+    "cantril_ladder",
+    "week_number",
+    "within_mandate_period"
+  ),
+  Description = c(
+    "Binary outcome for high social distancing adherence",
+    "Median social distancing score derived from selected social distancing behaviour items",
+    "Self-reported social distancing behaviour items used to construct the social distancing scale",
+    "Non-household contact behaviour; retained as a predictor",
+    "Perceived severity of COVID-19",
+    "Perceived susceptibility to COVID-19",
+    "PHQ-4 mental health items",
+    "Derived comorbidity indicator",
+    "Respondent state or territory",
+    "Respondent gender",
+    "Employment status",
+    "Whether respondent would isolate if unwell",
+    "Willingness to isolate",
+    "Trust or confidence in government response variables",
+    "Respondent age",
+    "Household size",
+    "Life satisfaction score",
+    "Two-week survey period since the first response date",
+    "Indicator for whether response occurred during/after mandate period"
+  ),
+  Processing = c(
+    "Created from social_distancing_scale; Yes if score >= 4, otherwise No",
+    "Median of available i12_health social distancing items",
+    "Mapped from frequency responses to numeric values from 1 to 5; dropped after outcome construction",
+    "Used directly as a model predictor",
+    "Converted from agreement categories to numeric score from 1 to 7",
+    "Converted from agreement categories to numeric score from 1 to 7",
+    "Missing values filled as N/A for the relevant survey period, then dummy encoded",
+    "Derived from d1_health variables, then dummy encoded",
+    "Dummy encoded",
+    "Dummy encoded",
+    "Dummy encoded",
+    "Dummy encoded",
+    "Dummy encoded",
+    "Dummy encoded",
+    "Used directly as a numeric predictor",
+    "Converted to numeric household size; 8 or more coded as 8",
+    "Used directly as a numeric predictor",
+    "Created from endtime using 14-day intervals",
+    "Created from OxCGRT face-covering mandate start dates and used to define before- and after-mandate prediction tasks"
+  ),
+  Code_reference = c(
+    "code/1_clean_dataset.py:101-104; code/3_split_data.py:49-65, 85-112, 132-153",
+    "code/1_clean_dataset.py:87-104",
+    "code/1_clean_dataset.py:76-101, 119-121",
+    "Retained from cleaned_data_preprocessing.csv; used in model feature sets in code/3_split_data.py:52-59, 88-97, 135-143",
+    "code/1_clean_dataset.py:63-74",
+    "code/1_clean_dataset.py:63-74",
+    "code/1_clean_dataset.py:54-55; code/2_data_preprocessing.py:63-81",
+    "code/1_clean_dataset.py:106-111; code/2_data_preprocessing.py:63-81",
+    "code/2_data_preprocessing.py:63-81",
+    "code/2_data_preprocessing.py:63-81",
+    "code/2_data_preprocessing.py:63-81",
+    "code/2_data_preprocessing.py:63-81",
+    "code/2_data_preprocessing.py:63-81",
+    "code/2_data_preprocessing.py:63-81",
+    "Retained from cleaned dataset; used in model feature sets in code/3_split_data.py:52-59, 88-97, 135-143",
+    "code/1_clean_dataset.py:21-29, 116",
+    "Retained from cleaned dataset; used in model feature sets in code/3_split_data.py:52-59, 88-97, 135-143",
+    "code/1_clean_dataset.py:113-114",
+    "code/00_mask_mandates.py:17-36; code/2_data_preprocessing.py:21-26, 46-61"
+  )
+)
+
+kable(
+  variable_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "Variables used in the social distancing prediction analysis.",
+  align = c("l", "p{4.2cm}", "p{5cm}", "p{5.5cm}")
+) %>%
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    full_width = FALSE,
+    font_size = 7
+  )
+```
+
+## Data splitting and outcome coding
+
+*Source: `code/3_split_data.py`, lines 18--30 and 38--43.*
+
+```python
+def stratified_split(
+    frame,
+    stratify_col,
+    test_size=0.2,
+    random_state=20240417
+):
+    test_parts = []
+
+    for _, group in frame.groupby(stratify_col):
+        n_test = max(
+            1,
+            int(round(len(group) * test_size))
+        )
+        test_parts.append(
+            group.sample(
+                n=n_test,
+                random_state=random_state
+            )
+        )
+
+    df_test = pd.concat(test_parts).sort_index()
+    df_train = frame.drop(index=df_test.index)
+
+    return df_train.copy(), df_test.copy()
+
+
+def encode_yes_no(series):
+    return series.map(
+        {"No": 0, "Yes": 1}
+    ).astype(int)
+
+
+df_train, df_test = stratified_split(
+    cleaned_df,
+    stratify_col="within_mandate_period",
+    test_size=0.2,
+    random_state=20240417
+)
+```
+
+The complete analytical dataset was divided into training and test sets using
+a custom 80/20 split stratified by mask-mandate status. This maintained
+approximately the same proportions of before- and after-mandate observations
+in the training and test sets. The binary social distancing outcome was coded
+as 1 for high adherence ("Yes") and 0 for lower adherence ("No").
+
+
+## Model fitting
+
+### Logistic Regression
+
+*Source: `code/reimpl/step04_logistic_baseline.py`.*
+
+```python
+def run_single_task(task: LogisticTask) -> pd.DataFrame:
+    x, y = load_training_task(task.name, TASK_DATA_DIR)
+
+    splitter = StratifiedShuffleSplit(
+        n_splits=5,
+        test_size=0.2,
+        random_state=CV_RANDOM_STATE
+    )
+
+    model = LogisticRegression(
+        max_iter=5000,
+        random_state=CV_RANDOM_STATE
+    )
+
+    rows = []
+
+    for fold_id, (train_idx, valid_idx) in enumerate(
+        splitter.split(x, y),
+        start=1
+    ):
+        x_train = x.iloc[train_idx].reset_index(drop=True)
+        y_train = y.iloc[train_idx].reset_index(drop=True)
+        x_valid = x.iloc[valid_idx].reset_index(drop=True)
+        y_valid = y.iloc[valid_idx].reset_index(drop=True)
+
+        x_train, y_train = upsample_if_needed(
+            x_train,
+            y_train,
+            task.upsample
+        )
+
+        scaler = StandardScaler()
+        x_train_scaled = scaler.fit_transform(x_train)
+        x_valid_scaled = scaler.transform(x_valid)
+
+        clf = model.fit(x_train_scaled, y_train)
+        preds = clf.predict(x_valid_scaled)
+```
+
+
+### Random upsampling
+
+*Source: `code/reimpl/step05_helpers.py`.*
+
+```python
+def upsample_if_needed(x, y, enabled):
+    if not enabled:
+        return x.reset_index(drop=True), y.reset_index(drop=True)
+
+    sampled = x.copy()
+    sampled["_target"] = y.to_numpy()
+    max_size = int(sampled["_target"].value_counts().max())
+
+    parts = []
+
+    for _, group in sampled.groupby("_target"):
+        parts.append(
+            group.sample(
+                n=max_size,
+                replace=True,
+                random_state=CV_RANDOM_STATE
+            )
+        )
+
+    balanced = pd.concat(parts, ignore_index=True).sample(
+        frac=1,
+        random_state=CV_RANDOM_STATE
+    )
+
+    y_balanced = balanced.pop("_target").astype(int)
+
+    return (
+        balanced.reset_index(drop=True),
+        y_balanced.reset_index(drop=True)
+    )
+```
+
+### Random Forest
+
+```{r table-rf-search-space, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(knitr)
+library(kableExtra)
+
+rf_search <- data.frame(
+  Parameter = c(
+    "n_estimators",
+    "max_depth",
+    "min_samples_split",
+    "min_samples_leaf",
+    "max_features",
+    "bootstrap"
+  ),
+  `Model 3` = c(
+    "250 (fixed)",
+    "2-32; log-scale sampling",
+    "2-300",
+    "1-200",
+    "sqrt, log2, or all predictors",
+    "True (fixed)"
+  ),
+  `Model 3a` = c(
+    "250 (fixed)",
+    "2-32; log-scale sampling",
+    "2 (default)",
+    "1-200",
+    "sqrt, log2, or all predictors",
+    "True (fixed)"
+  ),
+  `Model 3b` = c(
+    "250 (fixed)",
+    "2-32; log-scale sampling",
+    "2 (default)",
+    "1-200",
+    "sqrt, log2, or all predictors",
+    "True (fixed)"
+  ),
+  check.names = FALSE
+)
+
+kable(
+  rf_search,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "Random Forest hyperparameter search spaces."
+) |>
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    full_width = FALSE,
+    font_size = 8
+  )
+```
+
+The final values selected using the one-standard-error rule were:
+
+```{r table-rf-selected-values, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+rf_selected <- data.frame(
+  Task = c("Model 3", "Model 3a", "Model 3b"),
+  `Maximum depth` = c(16, 10, 18),
+  `Minimum samples required to split a node` = c(7, 2, 2),
+  `Minimum samples per leaf` = c(1, 1, 1),
+  `Candidate predictors considered per split` = c(
+    "Square root",
+    "Square root",
+    "Log2"
+  ),
+  check.names = FALSE
+)
+
+kable(
+  rf_selected,
+  format = "latex",
+  booktabs = TRUE,
+  caption = paste(
+    "Random Forest hyperparameters selected using",
+    "the one-standard-error rule."
+  )
+) |>
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    full_width = FALSE,
+    font_size = 8
+  )
+```
+
+*Source: `code/reimpl/step07_random_forest.py`, lines 66--90.*
+
+```python
+def suggest_params(trial, task):
+    if task.search_mode == "subset_with_max_features":
+        return {
+            "max_depth": trial.suggest_int(
+                "max_depth", 2, 32, log=True
+            ),
+            "min_samples_leaf": trial.suggest_int(
+                "min_samples_leaf", 1, 200
+            ),
+            "max_features": trial.suggest_categorical(
+                "max_features", ["sqrt", "log2", None]
+            ),
+        }
+
+    return {
+        "max_depth": trial.suggest_int(
+            "max_depth", 2, 32, log=True
+        ),
+        "min_samples_split": trial.suggest_int(
+            "min_samples_split", 2, 300
+        ),
+        "min_samples_leaf": trial.suggest_int(
+            "min_samples_leaf", 1, 200
+        ),
+        "max_features": trial.suggest_categorical(
+            "max_features", ["sqrt", "log2", None]
+        ),
+    }
+
+
+def build_model(params):
+    return RandomForestClassifier(
+        n_estimators=250,
+        bootstrap=True,
+        random_state=CV_RANDOM_STATE,
+        n_jobs=1,
+        **params,
+    )
+```
+
+### XGBoost
+
+```{r table-xgb-search-space, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(knitr)
+library(kableExtra)
+
+xgb_search <- data.frame(
+  Parameter = c(
+    "n_estimators",
+    "learning_rate",
+    "max_depth",
+    "min_child_weight",
+    "subsample",
+    "colsample_bytree"
+  ),
+  `Model 3` = c(
+    "250 (fixed)",
+    "0.01-1.00",
+    "2-10",
+    "1 (default)",
+    "0.10-1.00",
+    "0.50-0.90"
+  ),
+  `Model 3a` = c(
+    "250 (fixed)",
+    "0.01-1.00",
+    "6 (default)",
+    "1 (default)",
+    "0.10-1.00",
+    "1.00 (default)"
+  ),
+  `Model 3b` = c(
+    "250 (fixed)",
+    "0.01-1.00",
+    "2-10",
+    "1-10",
+    "0.10-1.00",
+    "1.00 (default)"
+  ),
+  check.names = FALSE
+)
+
+kable(
+  xgb_search,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "XGBoost hyperparameter search spaces."
+) |>
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    full_width = FALSE,
+    font_size = 8
+  )
+```
+
+The final values selected using the one-standard-error rule were:
+
+```{r table-xgb-selected-values, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+xgb_selected <- data.frame(
+  Task = c("Model 3", "Model 3a", "Model 3b"),
+  `Learning rate` = c(0.023534, 0.015304, 0.017294),
+  `Maximum depth` = c(10, 6, 10),
+  `Minimum child weight` = c(1, 1, 8),
+  `Row subsampling ratio` = c(
+    0.790758,
+    0.865725,
+    0.325594
+  ),
+  `Column subsampling ratio` = c(
+    0.553588,
+    1.000000,
+    1.000000
+  ),
+  check.names = FALSE
+)
+
+kable(
+  xgb_selected,
+  format = "latex",
+  booktabs = TRUE,
+  digits = 6,
+  caption = paste(
+    "XGBoost hyperparameters selected using",
+    "the one-standard-error rule."
+  )
+) |>
+  kable_styling(
+    latex_options = c("hold_position", "scale_down"),
+    full_width = FALSE,
+    font_size = 8
+  )
+```
+
+*Source: `code/reimpl/step06_xgboost_pipeline.py`, lines 98--113.*
+
+```python
+def build_model(params, y):
+    positives = float(y.sum())
+    negatives = float(len(y) - positives)
+    scale_pos_weight = negatives / positives if positives > 0 else 1.0
+
+    model_params = {
+        "n_estimators": 250,
+        "objective": "binary:logistic",
+        "eval_metric": "logloss",
+        "random_state": CV_RANDOM_STATE,
+        "n_jobs": 1,
+        "scale_pos_weight": scale_pos_weight,
+        **params,
+    }
+    return xgb.XGBClassifier(**model_params)
+```
+
+### Model evaluation
+
+ 
+`code/reimpl/step08_tree_based_test_performance.py`.
+
+```python
+TASKS = [
+    {"name": "model_3", "upsample": False},
+    {"name": "model_3a", "upsample": True},
+    {"name": "model_3b", "upsample": True},
+]
+
+
+def evaluate_predictions(y_true, preds, probs):
+    return {
+        "precision": precision_score(
+            y_true, preds, zero_division=0
+        ),
+        "recall": recall_score(
+            y_true, preds, zero_division=0
+        ),
+        "roc_auc": roc_auc_score(
+            y_true, probs
+        ),
+        "accuracy": accuracy_score(
+            y_true, preds
+        ),
+        "f1": f1_score(
+            y_true, preds, zero_division=0
+        ),
+    }
+```
+
+```python
+def evaluate_random_forest_task(task):
+    x_train, y_train = load_training_task(
+        task["name"], TASK_DATA_DIR
+    )
+    x_test, y_test = load_test_task(
+        task["name"], TASK_DATA_DIR
+    )
+
+    x_fit, y_fit = upsample_if_needed(
+        x_train, y_train, task["upsample"]
+    )
+
+    params_path = (
+        RESULTS_DIR
+        / f"{task['name']}_rf_best_within_one.json"
+    )
+    params = load_selected_params(params_path)
+
+    model = build_rf_model(params).fit(x_fit, y_fit)
+
+    preds = model.predict(x_test)
+    probs = model.predict_proba(x_test)[:, 1]
+    metrics = evaluate_predictions(y_test, preds, probs)
+
+    return {
+        "task": task["name"],
+        "model": "random forest",
+        **metrics,
+    }
+```
+
+```python
+def evaluate_xgboost_task(task):
+    x_train, y_train = load_training_task(
+        task["name"], TASK_DATA_DIR
+    )
+    x_test, y_test = load_test_task(
+        task["name"], TASK_DATA_DIR
+    )
+
+    x_fit, y_fit = upsample_if_needed(
+        x_train, y_train, task["upsample"]
+    )
+
+    params_path = (
+        RESULTS_DIR
+        / f"{task['name']}_xgboost_best_within_one.json"
+    )
+    params = load_selected_params(params_path)
+
+    model = build_xgb_model(
+        params=params,
+        y=y_fit
+    ).fit(x_fit, y_fit)
+
+    preds = model.predict(x_test)
+    probs = model.predict_proba(x_test)[:, 1]
+    metrics = evaluate_predictions(y_test, preds, probs)
+
+    return {
+        "task": task["name"],
+        "model": "XGBoost",
+        **metrics,
+    }
+```
+
+```python
+def run_tree_based_test_performance():
+    rows = []
+
+    for task in TASKS:
+        rows.append(evaluate_random_forest_task(task))
+
+    for task in TASKS:
+        rows.append(evaluate_xgboost_task(task))
+
+    output_path = (
+        RESULTS_DIR / "tree_based_test_performance.csv"
+    )
+    pd.DataFrame(rows).to_csv(output_path, index=False)
+
+    return output_path
+```
+
+After hyperparameter selection, the selected Random Forest and
+XGBoost models were fitted using the complete task-specific training
+data. Random upsampling was applied to Models 3a and 3b before model
+fitting. Predictions and predicted probabilities were then generated
+for the corresponding held-out test sets. Test performance was
+assessed using precision, recall, ROC-AUC, accuracy, and F1 score.
+
+## Evaluation metrics
+
+- **True positive (TP):** a respondent with high social distancing adherence who was correctly classified as having high adherence.
+- **False positive (FP):** a respondent with lower social distancing adherence who was incorrectly classified as having high adherence.
+- **True negative (TN):** a respondent with lower social distancing adherence who was correctly classified as having lower adherence.
+- **False negative (FN):** a respondent with high social distancing adherence who was incorrectly classified as having lower adherence.
+
+The evaluation metrics were calculated as follows:
+
+\[
+\text{Precision} = \frac{TP}{TP + FP}
+\]
+
+Precision is the proportion of respondents predicted to have high adherence who actually had high adherence.
+
+\[
+\text{Recall} = \frac{TP}{TP + FN}
+\]
+
+Recall is the proportion of respondents with high adherence who were correctly identified by the model.
+
+\[
+\text{Accuracy} = \frac{TP + TN}{TP + TN + FP + FN}
+\]
+
+Accuracy is the proportion of all respondents who were correctly classified as having either high or lower adherence.
+
+\[
+F1 = \frac{2 \times \text{Precision} \times \text{Recall}}
+{\text{Precision} + \text{Recall}}
+\]
+
+The F1 score is the harmonic mean of precision and recall. It summarises the balance between correctly identifying respondents with high adherence and limiting incorrect positive classifications.
+
+ROC-AUC was used as the primary metric for model selection. It summarises the model's ability to rank respondents with high adherence above respondents with lower adherence across all possible classification thresholds. A value of 0.5 indicates no discrimination beyond random ranking, while a value of 1 indicates perfect discrimination.
+
+## Feature Importance
+
+```{r table-feature-importance-top10, echo=FALSE, message=FALSE, warning=FALSE, results='asis'}
+library(knitr)
+library(kableExtra)
+
+feature_importance_table <- data.frame(
+  Model = c(
+    rep("random forest", 10),
+    rep("XGBoost", 10),
+    rep("random forest", 10),
+    rep("XGBoost", 10)
+  ),
+  Rank = rep(1:10, 4),
+  Feature = c(
+    "i2_health", "r1_1", "week_number", "age", "r1_2",
+    "cantril_ladder", "household_size", "i9_health_Yes",
+    "state_New South Wales", "i9_health_Not sure",
+
+    "i2_health", "r1_1", "i9_health_Yes", "i11_health_Very willing",
+    "i9_health_Not sure", "state_New South Wales", "state_Victoria",
+    "state_Western Australia", "r1_2", "week_number",
+
+    "i2_health", "week_number", "r1_1", "age", "cantril_ladder",
+    "r1_2", "household_size", "i11_health_Very willing",
+    "state_New South Wales", "state_Western Australia",
+
+    "i2_health", "i11_health_Very willing", "state_Western Australia",
+    "r1_1", "state_New South Wales", "i9_health_Not sure",
+    "i9_health_Yes", "state_Queensland", "state_South Australia",
+    "i11_health_Very unwilling"
+  ),
+  Importance = c(
+    "0.239", "0.126", "0.067", "0.058", "0.053",
+    "0.044", "0.029", "0.022", "0.021", "0.020",
+
+    "0.078", "0.052", "0.026", "0.026", "0.025",
+    "0.023", "0.023", "0.022", "0.018", "0.018",
+
+    "0.158", "0.106", "0.080", "0.077", "0.051",
+    "0.048", "0.041", "0.025", "0.020", "0.018",
+
+    "0.049", "0.041", "0.035", "0.031", "0.027",
+    "0.026", "0.024", "0.023", "0.023", "0.021"
+  )
+)
+
+kable(
+  feature_importance_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "Top ten feature-importance results for the random forest and XGBoost models before and after mandate periods. Values represent mean feature importance across 80 repeated model fits.",
+  align = c("l", "c", "l", "c")
+) %>%
+  pack_rows("before mandates--random forest", 1, 10, italic = TRUE) %>%
+  pack_rows("before mandates--XGBoost", 11, 20, italic = TRUE) %>%
+  pack_rows("after mandates--random forest", 21, 30, italic = TRUE) %>%
+  pack_rows("after mandates--XGBoost", 31, 40, italic = TRUE) %>%
+  kable_styling(
+    latex_options = c("hold_position"),
+    full_width = FALSE,
+    position = "center",
+    font_size = 8
+  )
+```
+
+
